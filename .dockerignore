@@ -1,0 +1,16 @@
+# nunca meter datos personales en la imagen
+data
+config
+exportes
+*.csv
+*.json.bak
+
+node_modules
+.git
+.claude
+README.md
+AGENTS.md
+Dockerfile
+docker-compose.yml
+.github
+.gitignore

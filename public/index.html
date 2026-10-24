@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mis Finanzas</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💰</text></svg>" />
+  <link rel="stylesheet" href="styles.css" />
+  <script src="/vendor/echarts.min.js"></script>
+</head>
+<body>
+  <header class="top">
+    <div>
+      <h1>Mis finanzas</h1>
+      <p class="sub" id="dataInfo">Cargando…</p>
+    </div>
+    <div class="top-actions">
+      <button class="btn" id="btnAll" title="Ver y etiquetar todos los movimientos">📋 Movimientos</button>
+      <button class="btn" id="btnLoad" title="Cargar más CSV o cambiar los cargados">📂 Cargar CSV</button>
+      <button class="btn" id="btnExport" title="Descargar el dashboard como un único archivo HTML que funciona sin servidor">⬇ Exportar HTML</button>
+      <button class="btn icon" id="btnHide" title="Ocultar montos" aria-label="Ocultar montos" aria-pressed="false">
+        <svg class="eye-on" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+        <svg class="eye-off" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.6 5.1A10.9 10.9 0 0 1 12 5c6.5 0 10 7 10 7a17.6 17.6 0 0 1-2.6 3.6M6.6 6.6C3.8 8.4 2 12 2 12s3.5 7 10 7c1.9 0 3.6-.6 5-1.5"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/><path d="M3 3l18 18"/></svg>
+      </button>
+      <button class="btn icon" id="btnConfig" title="Configuración: respaldar, importar o borrar renombres y categorías" aria-label="Configuración">⚙</button>
+      <button class="btn icon" id="btnTheme" title="Cambiar tema" aria-label="Cambiar tema">◐</button>
+    </div>
+  </header>
+
+  <!-- Pantalla de carga: los CSV se procesan en el navegador y no se envían a ningún servidor -->
+  <section class="upload" id="upload" hidden aria-labelledby="uTitle">
+    <div class="upload-card">
+      <h2 id="uTitle">💰 Carga tus movimientos</h2>
+      <p class="sub">Arrastra aquí los CSV de Mercado Pago: el reporte de <b>liberaciones</b> (<code>reserve-release-*.csv</code>, recomendado) o el de <b>liquidaciones</b> (<code>settlement_*.csv</code>).</p>
+      <label class="drop" id="drop">
+        <input type="file" id="fileInput" accept=".csv,text/csv" multiple hidden />
+        <span class="drop-icon" aria-hidden="true">📄</span>
+        <span><b>Elige los archivos</b> o arrástralos aquí</span>
+        <span class="hint">Puedes cargar varios meses a la vez; los movimientos repetidos se eliminan solos.</span>
+      </label>
+      <ul class="file-list" id="fileList"></ul>
+      <p class="upload-summary" id="uploadSummary"></p>
+      <div class="dlg-actions">
+        <button type="button" class="btn" id="btnConfigUpload">⚙ Configuración</button>
+        <span style="flex:1"></span>
+        <button type="button" class="btn" id="btnCancelUpload">Cancelar</button>
+        <button type="button" class="btn primary" id="btnStart" disabled>Ver dashboard →</button>
+      </div>
+      <p class="hint" id="cfgInfo"></p>
+      <p class="hint">🔒 Tus archivos se procesan en este navegador y se olvidan al recargar la página. Solo los renombres, categorías y presupuesto quedan guardados aquí (localStorage).</p>
+    </div>
+  </section>
+
+  <section class="filters" aria-label="Filtros">
+    <div class="field">
+      <span class="label">Periodo</span>
+      <div class="seg" id="presets">
+        <button data-preset="all" class="on">Todo</button>
+        <button data-preset="month">Mes actual</button>
+        <button data-preset="prev">Mes anterior</button>
+        <button data-preset="30">30 días</button>
+        <button data-preset="90">90 días</button>
+      </div>
+    </div>
+    <div class="field">
+      <span class="label">Desde / hasta</span>
+      <div class="dates">
+        <input type="date" id="from" aria-label="Desde" />
+        <input type="date" id="to" aria-label="Hasta" />
+      </div>
+    </div>
+    <div class="field">
+      <span class="label">Agrupar por</span>
+      <div class="seg" id="gran">
+        <button data-gran="dia">Diario</button>
+        <button data-gran="semana">Semanal</button>
+        <button data-gran="mes" class="on">Mensual</button>
+        <button data-gran="trimestre">Trimestral</button>
+      </div>
+    </div>
+    <div class="field grow">
+      <span class="label">Categorías de gasto <span class="hint" style="text-transform:none;letter-spacing:0">(clic para ocultar)</span></span>
+      <div class="chips" id="catChips"></div>
+    </div>
+  </section>
+
+  <main>
+    <section class="kpis" id="kpis"></section>
+
+    <section class="card insights">
+      <div class="card-head"><h2>💡 Ideas para optimizar</h2><span class="hint">Calculado sobre el periodo filtrado</span></div>
+      <ul id="insights"></ul>
+    </section>
+
+    <section class="grid">
+      <article class="card span-7">
+        <div class="card-head"><h2 id="tBar">Gasto por periodo</h2><span class="hint">Clic en una barra para ver el detalle</span></div>
+        <div class="chart" id="cBar"></div>
+      </article>
+      <article class="card span-5">
+        <div class="card-head">
+          <h2>Distribución del gasto</h2>
+          <div class="seg small" data-dim="pie">
+            <button data-v="category" class="on">Categoría</button><button data-v="merchant">Comercio</button><button data-v="channel">Medio de pago</button>
+          </div>
+        </div>
+        <div class="chart" id="cPie"></div>
+      </article>
+
+      <article class="card span-7">
+        <div class="card-head">
+          <h2 id="tStack">Gasto apilado</h2>
+          <div class="seg small" data-dim="stack">
+            <button data-v="category" class="on">Categoría</button><button data-v="merchant">Comercio</button><button data-v="channel">Medio de pago</button>
+          </div>
+        </div>
+        <div class="chart" id="cStack"></div>
+      </article>
+      <article class="card span-5">
+        <div class="card-head"><h2 id="tLine">Ingresos vs. gastos</h2><span class="hint">Clic en un punto</span></div>
+        <div class="chart" id="cLine"></div>
+      </article>
+
+      <article class="card span-7">
+        <div class="card-head"><h2>🏪 ¿Dónde se va tu dinero?</h2><span class="hint">Top 15 · color = categoría · clic para ver sus pagos</span></div>
+        <div class="chart tall" id="cMerch"></div>
+      </article>
+      <article class="card span-5">
+        <div class="card-head"><h2>Top 10 pagos más altos</h2><span class="hint">Clic para ver y etiquetar</span></div>
+        <ol class="toplist" id="topList"></ol>
+      </article>
+
+      <article class="card span-12">
+        <div class="card-head">
+          <h2>Calendario de gasto diario</h2>
+          <div class="head-tools">
+            <span class="hint">Colores por tramos · clic en un día</span>
+            <div class="seg small" data-heat><button data-v="amount" class="on">Monto</button><button data-v="count">N° de pagos</button></div>
+          </div>
+        </div>
+        <div class="chart short" id="cCal"></div>
+      </article>
+
+      <article class="card span-5">
+        <div class="card-head">
+          <h2>¿Cuándo gastas más?</h2>
+          <div class="seg small" data-heat><button data-v="amount" class="on">Monto</button><button data-v="count">N° de pagos</button></div>
+        </div>
+        <div class="chart" id="cHeat"></div>
+      </article>
+      <article class="card span-7">
+        <div class="card-head"><h2>🔁 Gastos que se repiten</h2><span class="hint">Comercios que cobras mes a mes: suscripciones, cuentas y hábitos</span></div>
+        <div class="table-wrap scroll"><table class="tbl" id="recTable"></table></div>
+      </article>
+
+      <article class="card span-12">
+        <div class="card-head">
+          <h2>🗂️ Tus comercios y destinatarios</h2>
+          <div class="head-tools">
+            <input type="search" id="mSearch" placeholder="Buscar comercio…" />
+            <span class="hint">Renombra o cambia la categoría y se aplica a todos sus pagos</span>
+          </div>
+        </div>
+        <div class="table-wrap scroll tall"><table class="tbl" id="merchTable"></table></div>
+      </article>
+    </section>
+  </main>
+
+  <!-- Panel de detalle -->
+  <div class="scrim" id="scrim" hidden></div>
+  <aside class="drawer" id="drawer" aria-hidden="true" aria-labelledby="dTitle">
+    <div class="drawer-head">
+      <div>
+        <h2 id="dTitle">Detalle</h2>
+        <p class="sub" id="dSummary"></p>
+      </div>
+      <button class="btn icon" id="dClose" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="drawer-tools">
+      <input type="search" id="dSearch" placeholder="Buscar comercio, producto, categoría, monto…" />
+      <label class="check"><input type="checkbox" id="dWholeMerchant" checked /> Al cambiar la categoría, aplicarla a todo el comercio</label>
+      <button class="btn" id="dExport">⬇ CSV</button>
+    </div>
+    <div class="table-wrap drawer-body"><table class="tbl" id="dTable"></table></div>
+  </aside>
+  <!-- Renombrar comercio -->
+  <dialog id="renameDlg" aria-labelledby="rTitle">
+    <form method="dialog" id="renameForm">
+      <h2 id="rTitle">Renombrar comercio</h2>
+      <p class="sub" id="rInfo"></p>
+      <label class="label" for="rInput">Nuevo nombre</label>
+      <input id="rInput" list="merchList" autocomplete="off" required />
+      <p class="hint">Si usas el nombre de otro comercio, ambos se sumarán como uno solo.</p>
+      <div class="dlg-actions">
+        <button type="button" class="btn" id="rRestore">↺ Restaurar original</button>
+        <span style="flex:1"></span>
+        <button type="button" class="btn" id="rCancel">Cancelar</button>
+        <button type="submit" class="btn primary" id="rSave">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <!-- Configuración guardada en el navegador -->
+  <dialog id="cfgDlg" aria-labelledby="cTitle">
+    <h2 id="cTitle">⚙ Configuración</h2>
+    <p class="sub">Tus renombres, categorías, tipos, etiquetas y presupuesto se guardan solo en este navegador. Descarga un respaldo para no perderlos o para usarlos en otro equipo.</p>
+    <p class="sub" id="cfgSummary"></p>
+    <div class="cfg-actions">
+      <button type="button" class="btn" id="cfgExport">⬇ Descargar respaldo (.json)</button>
+      <label class="btn" for="cfgImport">⬆ Importar respaldo…</label>
+      <input type="file" id="cfgImport" accept=".json,application/json" hidden />
+      <button type="button" class="btn danger" id="cfgClear">🗑 Borrar configuración</button>
+    </div>
+    <p class="hint">Importar también acepta los antiguos <code>config/comercios.json</code>, <code>etiquetas.json</code> y <code>ajustes.json</code>. Lo importado se suma a lo que ya tienes.</p>
+    <div class="dlg-actions"><span style="flex:1"></span><button type="button" class="btn" id="cfgClose">Cerrar</button></div>
+  </dialog>
+
+  <datalist id="catList"></datalist>
+  <datalist id="merchList"></datalist>
+
+  <script src="loader.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

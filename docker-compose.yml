@@ -1,0 +1,18 @@
+services:
+  finanzas:
+    # imagen publicada por GitHub Actions al hacer push a main.
+    #   docker compose pull && docker compose up -d   → usa la publicada
+    #   docker compose up -d --build                  → compila desde el código local
+    image: ghcr.io/blackshot/finanzas-dashboard:latest
+    build: .
+    container_name: finanzas
+    ports:
+      # solo accesible desde este equipo; usa "3000:3000" para abrirlo a tu red local
+      - "127.0.0.1:3000:3000"
+    restart: unless-stopped
+    # el contenedor no necesita escribir nada en disco
+    read_only: true
+    tmpfs:
+      - /tmp
+    environment:
+      BUN_RUNTIME_TRANSPILER_CACHE_PATH: "0"

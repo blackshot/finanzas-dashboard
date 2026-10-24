@@ -1,0 +1,16 @@
+{
+  "name": "finanzas",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "bun index.ts",
+    "dev": "bun --watch index.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "dependencies": {
+    "echarts": "5.5.1"
+  }
+}
